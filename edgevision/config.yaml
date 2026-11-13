@@ -1,0 +1,117 @@
+# ==============================================================================
+# EdgeVision Configuration File
+# Offline Vehicle and Pedestrian Detection and Counting for Raspberry Pi 4
+# ==============================================================================
+
+# Model and inference runtime configuration
+model:
+  # Detector architecture name (torchvision COCO detector)
+  name: "ssdlite320_mobilenet_v3_large"
+  # Path to compiled ExecuTorch .pte model file
+  pte_path: "models/ssdlite320_mobilenet_v3_large.pte"
+  # Path to precomputed default anchor boxes (.npy) for post-processing
+  anchors_path: "models/anchors.npy"
+  # Model square input resolution (width and height in pixels, default 320)
+  input_size: 320
+  # Active runtime: "executorch-int8", "executorch-fp32", or "pytorch-reference"
+  runtime: "executorch-int8"
+
+# Target classes to detect and count from COCO dataset
+# COCO category IDs: 1: person, 2: bicycle, 3: car, 4: motorcycle, 6: bus, 8: truck
+classes:
+  target_names:
+    - "person"
+    - "bicycle"
+    - "car"
+    - "motorcycle"
+    - "bus"
+    - "truck"
+  coco_id_map:
+    1: "person"
+    2: "bicycle"
+    3: "car"
+    4: "motorcycle"
+    6: "bus"
+    8: "truck"
+
+# Detection thresholding and Non-Maximum Suppression (NMS) parameters
+# Fallback confidence threshold (0.0 to 1.0) applied before NMS
+conf_threshold: 0.20
+# Per-class confidence thresholds:
+# Small/distant vehicles in wide traffic views output lower softmax probabilities (~0.12-0.14),
+# while pedestrians operate optimally at ~0.22 to eliminate background foliage/clutter.
+class_thresholds:
+  person: 0.22
+  bicycle: 0.15
+  car: 0.12
+  motorcycle: 0.15
+  bus: 0.14
+  truck: 0.14
+# Intersection over Union (IoU) threshold for intra-class NMS deduplication (0.35 suppresses adjacent box duplicates)
+nms_iou: 0.35
+# Cross-class vehicle deduplication: suppress overlapping detections between vehicle categories (e.g. car vs truck)
+inter_class_vehicle_nms: true
+# Overlap IoU threshold for cross-class vehicle duplicate suppression
+inter_class_iou: 0.40
+# Maximum number of top detections retained per frame
+max_detections: 100
+
+# Pipeline execution and performance tuning
+# Frame stride: process every Nth frame (integer >= 1) or "auto" for dynamic adaptation
+frame_stride: "auto"
+# Number of CPU execution threads for XNNPACK backend (1 to 4 on Raspberry Pi 4)
+threads: 4
+
+# Temporal count smoothing (rolling median filter over consecutive frame counts)
+smoothing:
+  # Enable or disable temporal count smoothing
+  enabled: true
+  # Rolling median window size in frames (must be an odd integer >= 1)
+  window: 5
+
+# Region of Interest (ROI) zone counting
+zone:
+  # Enable or disable polygon zone counting
+  enabled: false
+  # Polygon vertices in normalised coordinates [x, y] where 0.0 <= x, y <= 1.0
+  polygon:
+    - [0.10, 0.20]
+    - [0.90, 0.20]
+    - [0.90, 0.80]
+    - [0.10, 0.80]
+
+# Congestion traffic condition thresholds (average vehicles per frame)
+# Vehicles include: bicycle, car, motorcycle, bus, truck
+congestion:
+  # Threshold for Low congestion: average vehicles <= low_max
+  low_max: 5
+  # Threshold for Medium congestion: low_max < average vehicles <= medium_max
+  # High congestion: average vehicles > medium_max
+  medium_max: 12
+
+# Privacy controls for exported visualization samples
+privacy:
+  # Apply Gaussian blur over bounding boxes of detected persons in saved samples
+  blur_persons_in_samples: true
+
+# Output generation and artifact persistence
+output:
+  # Number of evenly spaced sample frames to save with visual annotations
+  save_samples: 6
+  # Whether to render and save the full annotated video (computationally expensive)
+  save_video: false
+  # Whether to export per-frame counts to CSV
+  csv: true
+
+# Video upload constraints for Flask web interface
+upload:
+  # Maximum allowed video duration in seconds (checked via OpenCV metadata)
+  max_seconds: 60
+  # Maximum allowed file upload size in megabytes
+  max_mb: 100
+  # Allowed video file extensions
+  allowed:
+    - "mp4"
+    - "avi"
+    - "mov"
+    - "mkv"

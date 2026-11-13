@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdgeVision - Traffic Video Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>EdgeVision</h1>
+      <p class="subtitle">Offline Vehicle &amp; Pedestrian Detection (Raspberry Pi 4 / ExecuTorch)</p>
+    </header>
+
+    {% if is_busy %}
+    <div class="alert alert-warning">
+      <strong>Device Busy:</strong> Another video is currently being processed. You can check the active job progress <a href="/job/{{ active_job_id }}">here</a> or wait for it to complete.
+    </div>
+    {% endif %}
+
+    <main>
+      <section class="card">
+        <h2>Upload Traffic Video</h2>
+        <p class="info-note">
+          <strong>Constraints:</strong> Maximum video duration: <strong>60 seconds</strong> | File size limit: <strong>100 MB</strong><br>
+          Supported formats: <strong>MP4, AVI, MOV, MKV</strong> (100% offline, zero cloud calls).
+        </p>
+
+        <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
+          <div class="form-group">
+            <label for="video-file">Select Traffic Video:</label>
+            <input type="file" id="video-file" name="video" accept=".mp4,.avi,.mov,.mkv" required>
+          </div>
+
+          <details class="options-details">
+            <summary>Advanced Analysis Settings</summary>
+            <div class="options-grid">
+              <div class="form-group">
+                <label for="runtime-select">Inference Runtime:</label>
+                <select id="runtime-select" name="runtime">
+                  <option value="executorch-fp32" {% if config.model.runtime == 'executorch-fp32' %}selected{% endif %}>ExecuTorch FP32 (XNNPACK)</option>
+                  <option value="executorch-int8" {% if config.model.runtime == 'executorch-int8' %}selected{% endif %}>ExecuTorch INT8 (PT2E Quantized)</option>
+                  <option value="pytorch-reference" {% if config.model.runtime == 'pytorch-reference' %}selected{% endif %}>PyTorch Reference (Baseline)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="stride-input">Frame Stride:</label>
+                <input type="text" id="stride-input" name="stride" value="{{ config.frame_stride }}" placeholder="auto or integer (e.g. 2)">
+                <small>Process every Nth frame (or 'auto')</small>
+              </div>
+
+              <div class="form-group">
+                <label for="thresh-input">Confidence Threshold:</label>
+                <input type="number" id="thresh-input" name="conf_threshold" value="{{ config.conf_threshold }}" min="0.05" max="0.95" step="0.05">
+                <small>Range 0.05 - 0.95 (default 0.40)</small>
+              </div>
+            </div>
+          </details>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" {% if is_busy %}disabled{% endif %}>Upload and Analyse</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>EdgeVision Offline Embedded Analytics &bull; Running locally on <code>0.0.0.0:5000</code></p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "runtime_used": "pytorch-reference",
+  "device_platform": "Windows-10-10.0.19045-SP0",
+  "cpu_architecture": "AMD64",
+  "cpu_model": "Intel64 Family 6 Model 142 Stepping 12, GenuineIntel",
+  "num_processed_frames": 153,
+  "num_skipped_frames": 887,
+  "total_time_seconds": 44.306,
+  "end_to_end_fps": 23.47,
+  "effective_fps": 3.53,
+  "latency_mean_ms": 283.47,
+  "latency_p50_ms": 295.94,
+  "latency_p95_ms": 325.79,
+  "latency_p99_ms": 392.01,
+  "peak_rss_mb": 437.71,
+  "cpu_temp_start_c": null,
+  "cpu_temp_end_c": null,
+  "model_size_mb": null
+}

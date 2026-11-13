@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis Results - EdgeVision</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Analysis Results</h1>
+      <p class="subtitle">Job ID: <code>{{ job.job_id }}</code> &bull; Video: <strong>{{ job.filename }}</strong></p>
+    </header>
+
+    <div class="action-bar">
+      <a href="/" class="btn btn-secondary">&larr; Analyse Another Video</a>
+      <div class="btn-group">
+        <a href="/download/{{ job.job_id }}/csv" class="btn btn-primary" download>Download CSV Counts</a>
+        <a href="/download/{{ job.job_id }}/benchmark" class="btn btn-outline" download>Download Benchmark JSON</a>
+      </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <section class="metrics-grid">
+      <div class="card metric-card">
+        <span class="card-label">Runtime</span>
+        <span class="card-val highlight">{{ result.runtime_used if result else 'N/A' }}</span>
+        <span class="card-sub">Inference Backend</span>
+      </div>
+      <div class="card metric-card">
+        <span class="card-label">Processing Time</span>
+        <span class="card-val">{{ "%.2f"|format(result.processing_time_seconds) if result else 'N/A' }} s</span>
+        <span class="card-sub">{{ result.processed_frames if result else 0 }} frames processed</span>
+      </div>
+      <div class="card metric-card">
+        <span class="card-label">End-to-End Speed</span>
+        <span class="card-val">{{ "%.1f"|format(result.end_to_end_fps) if result else 'N/A' }} FPS</span>
+        <span class="card-sub">Effective: {{ "%.1f"|format(result.effective_fps) if result else '0' }} FPS</span>
+      </div>
+      <div class="card metric-card">
+        <span class="card-label">Peak Vehicles</span>
+        <span class="card-val">{{ result.peak_counts.get('vehicles', 0) if result else 0 }}</span>
+        <span class="card-sub">Peak Persons: {{ result.peak_counts.get('person', 0) if result else 0 }}</span>
+      </div>
+    </section>
+
+    <!-- Annotated Sample Frames -->
+    {% if samples %}
+    <section class="card">
+      <h2>Sample Annotated Frames</h2>
+      <p class="note">Evenly sampled frames showing detection boxes and count overlays with privacy blur.</p>
+      <div class="gallery-grid">
+        {% for s_url in samples %}
+        <div class="gallery-item">
+          <img src="{{ s_url }}" alt="Annotated frame sample" loading="lazy">
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Chart if available -->
+    {% if chart_url %}
+    <section class="card">
+      <h2>Counts Over Time</h2>
+      <div class="chart-container">
+        <img src="{{ chart_url }}" alt="Counts Over Time Trend" style="max-width: 100%; border-radius: 6px;">
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Summary Markdown Rendered -->
+    {% if summary_text %}
+    <section class="card">
+      <h2>Summary Report (summary.md)</h2>
+      <pre class="markdown-preview">{{ summary_text }}</pre>
+    </section>
+    {% endif %}
+
+    <!-- Per-Frame Counts Table -->
+    <section class="card">
+      <h2>Per-Frame Counts Table (First 50 Rows of {{ total_records_count }})</h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Frame</th>
+              <th>Time (s)</th>
+              <th>Person</th>
+              <th>Car</th>
+              <th>Bus</th>
+              <th>Truck</th>
+              <th>Motorcycle</th>
+              <th>Bicycle</th>
+              <th>Total Vehicles</th>
+              {% if records and 'in_zone_vehicles' in records[0] %}
+              <th>In-Zone Veh</th>
+              <th>In-Zone Ped</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            <tr>
+              <td>{{ r.frame }}</td>
+              <td>{{ r.timestamp_s }}</td>
+              <td>{{ r.person }}</td>
+              <td>{{ r.car }}</td>
+              <td>{{ r.bus }}</td>
+              <td>{{ r.truck }}</td>
+              <td>{{ r.motorcycle }}</td>
+              <td>{{ r.bicycle }}</td>
+              <td><strong>{{ r.total_vehicles }}</strong></td>
+              {% if 'in_zone_vehicles' in r %}
+              <td>{{ r.in_zone_vehicles }}</td>
+              <td>{{ r.in_zone_pedestrians }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if total_records_count > 50 %}
+      <p class="note" style="margin-top: 0.75rem;">Showing first 50 rows. Download full CSV for all {{ total_records_count }} frames.</p>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>

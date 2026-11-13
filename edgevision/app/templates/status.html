@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Processing Video - EdgeVision</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>EdgeVision</h1>
+      <p class="subtitle">Offline Video Processing in Progress</p>
+    </header>
+
+    <main>
+      <section class="card text-center">
+        <h2>Processing: {{ job.filename }}</h2>
+        <p class="text-muted">Job ID: <code>{{ job.job_id }}</code></p>
+
+        <div class="progress-container">
+          <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+        </div>
+
+        <div class="status-metrics">
+          <div class="metric-box">
+            <span class="metric-label">Status</span>
+            <span id="job-state" class="metric-value">{{ job.state|capitalize }}</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Frames</span>
+            <span id="frames-metric" class="metric-value">0 / {{ job.total_frames }}</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Throughput</span>
+            <span id="fps-metric" class="metric-value">0.0 FPS</span>
+          </div>
+        </div>
+
+        <div id="error-box" class="alert alert-danger" style="display: none; margin-top: 1.5rem;"></div>
+
+        <p class="note" style="margin-top: 1.5rem;">
+          Processing on edge CPU. This page polls every second and redirects automatically upon completion.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const jobId = "{{ job.job_id }}";
+    const statusUrl = "/status/" + jobId;
+    const resultUrl = "/result/" + jobId;
+
+    function pollStatus() {
+      fetch(statusUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error && data.state === "failed") {
+            document.getElementById("job-state").innerText = "Failed";
+            document.getElementById("error-box").innerText = "Error: " + data.error;
+            document.getElementById("error-box").style.display = "block";
+            return;
+          }
+
+          document.getElementById("job-state").innerText = data.state.charAt(0).toUpperCase() + data.state.slice(1);
+          document.getElementById("frames-metric").innerText = data.processed_frames + " / " + data.total_frames;
+          document.getElementById("fps-metric").innerText = data.current_fps.toFixed(1) + " FPS";
+
+          let pct = 0;
+          if (data.total_frames > 0) {
+            pct = Math.min(100, Math.round((data.processed_frames / data.total_frames) * 100));
+          }
+          document.getElementById("progress-bar").style.width = pct + "%";
+
+          if (data.state === "completed") {
+            document.getElementById("job-state").innerText = "Complete! Redirecting...";
+            document.getElementById("progress-bar").style.width = "100%";
+            setTimeout(() => {
+              window.location.href = resultUrl;
+            }, 800);
+          } else if (data.state !== "failed") {
+            setTimeout(pollStatus, 1000);
+          }
+        })
+        .catch(err => {
+          console.error("Poll error:", err);
+          setTimeout(pollStatus, 2000);
+        });
+    }
+
+    pollStatus();
+  </script>
+</body>
+</html>
