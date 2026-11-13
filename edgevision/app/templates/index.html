@@ -27,10 +27,11 @@
           Supported formats: <strong>MP4, AVI, MOV, MKV</strong> (100% offline, zero cloud calls).
         </p>
 
-        <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
+        <form id="upload-form" action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
           <div class="form-group">
             <label for="video-file">Select Traffic Video:</label>
             <input type="file" id="video-file" name="video" accept=".mp4,.avi,.mov,.mkv" required>
+            <div id="file-info" class="file-info-badge" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: #475569;"></div>
           </div>
 
           <details class="options-details">
@@ -56,11 +57,22 @@
                 <input type="number" id="thresh-input" name="conf_threshold" value="{{ config.conf_threshold }}" min="0.05" max="0.95" step="0.05">
                 <small>Range 0.05 - 0.95 (default 0.40)</small>
               </div>
+
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" name="save_video" value="true" {% if config.output.save_video %}checked{% endif %}>
+                  <strong>Save Output Video</strong>
+                </label>
+                <small>Export full annotated MP4 video with detections</small>
+              </div>
             </div>
           </details>
 
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary" {% if is_busy %}disabled{% endif %}>Upload and Analyse</button>
+            <button type="submit" id="submit-btn" class="btn btn-primary" {% if is_busy %}disabled{% endif %}>Upload and Analyse</button>
+          </div>
+          <div id="upload-status" class="alert alert-info" style="display: none; margin-top: 1rem;">
+            <strong>Uploading video...</strong> Please wait while the file transfers to the offline engine.
           </div>
         </form>
       </section>
@@ -70,5 +82,39 @@
       <p>EdgeVision Offline Embedded Analytics &bull; Running locally on <code>0.0.0.0:5000</code></p>
     </footer>
   </div>
+
+  <script>
+    const fileInput = document.getElementById("video-file");
+    const fileInfo = document.getElementById("file-info");
+    const form = document.getElementById("upload-form");
+    const submitBtn = document.getElementById("submit-btn");
+    const uploadStatus = document.getElementById("upload-status");
+
+    fileInput.addEventListener("change", function() {
+      if (this.files && this.files[0]) {
+        const file = this.files[0];
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+        fileInfo.style.display = "block";
+        fileInfo.innerHTML = "Selected: <strong>" + file.name + "</strong> (" + sizeMb + " MB)";
+        if (file.size > 100 * 1024 * 1024) {
+          fileInfo.innerHTML += " <span style='color: #dc2626;'>[Exceeds 100 MB limit]</span>";
+          submitBtn.disabled = true;
+        } else {
+          submitBtn.disabled = false;
+        }
+      }
+    });
+
+    form.addEventListener("submit", function(e) {
+      if (fileInput.files && fileInput.files[0] && fileInput.files[0].size > 100 * 1024 * 1024) {
+        e.preventDefault();
+        alert("File size exceeds the 100 MB upload limit.");
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Uploading...";
+      uploadStatus.style.display = "block";
+    });
+  </script>
 </body>
 </html>

@@ -35,24 +35,10 @@ classes:
     8: "truck"
 
 # Detection thresholding and Non-Maximum Suppression (NMS) parameters
-# Fallback confidence threshold (0.0 to 1.0) applied before NMS
-conf_threshold: 0.20
-# Per-class confidence thresholds:
-# Small/distant vehicles in wide traffic views output lower softmax probabilities (~0.12-0.14),
-# while pedestrians operate optimally at ~0.22 to eliminate background foliage/clutter.
-class_thresholds:
-  person: 0.22
-  bicycle: 0.15
-  car: 0.12
-  motorcycle: 0.15
-  bus: 0.14
-  truck: 0.14
-# Intersection over Union (IoU) threshold for intra-class NMS deduplication (0.35 suppresses adjacent box duplicates)
-nms_iou: 0.35
-# Cross-class vehicle deduplication: suppress overlapping detections between vehicle categories (e.g. car vs truck)
-inter_class_vehicle_nms: true
-# Overlap IoU threshold for cross-class vehicle duplicate suppression
-inter_class_iou: 0.40
+# Minimum confidence threshold (0.0 to 1.0) applied before NMS
+conf_threshold: 0.40
+# Intersection over Union (IoU) threshold for NMS deduplication
+nms_iou: 0.45
 # Maximum number of top detections retained per frame
 max_detections: 100
 

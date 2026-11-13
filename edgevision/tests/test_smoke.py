@@ -45,9 +45,8 @@ def test_load_config_valid():
     assert cfg.model.name == "ssdlite320_mobilenet_v3_large"
     assert cfg.model.input_size == 320
     assert cfg.model.runtime in ("executorch-int8", "executorch-fp32", "pytorch-reference")
-    assert cfg.conf_threshold == 0.20
-    assert cfg.class_thresholds.get("car") == 0.12
-    assert cfg.nms_iou == 0.35
+    assert cfg.conf_threshold == 0.40
+    assert cfg.nms_iou == 0.45
     assert cfg.max_detections == 100
     assert cfg.frame_stride == "auto"
     assert cfg.threads == 4

@@ -97,3 +97,51 @@ def test_upload_valid_video_and_poll(client):
     res_html = result_page.data.decode("utf-8")
     assert "Analysis Results" in res_html
     assert "Total Vehicles" in res_html
+
+    # Test download endpoints
+    csv_resp = client.get(f"/download/{job_id}/csv")
+    assert csv_resp.status_code == 200
+    assert b"total_vehicles" in csv_resp.data
+
+    bench_resp = client.get(f"/download/{job_id}/benchmark")
+    assert bench_resp.status_code == 200
+    assert b"runtime_used" in bench_resp.data
+
+    summary_resp = client.get(f"/download/{job_id}/summary")
+    assert summary_resp.status_code == 200
+    assert b"EdgeVision" in summary_resp.data
+
+
+def test_cancel_job(client):
+    """Verify job cancellation and lock release."""
+    jobs["test_cancel"] = {
+        "job_id": "test_cancel",
+        "state": "processing",
+    }
+    resp = client.get("/cancel/test_cancel", follow_redirects=True)
+    assert resp.status_code == 200
+    assert jobs["test_cancel"]["state"] == "failed"
+
+
+def test_safe_stream_wrapper():
+    """Verify SafeStreamWrapper swallows Errno 22 (EINVAL) without raising."""
+    from edgevision.stream_utils import SafeStreamWrapper, safe_print
+
+    class BrokenStream:
+        def write(self, data):
+            err = OSError("[Errno 22] Invalid argument")
+            err.errno = 22
+            raise err
+
+        def flush(self):
+            err = OSError("[Errno 22] Invalid argument")
+            err.errno = 22
+            raise err
+
+    wrapper = SafeStreamWrapper(BrokenStream())
+    # Should not raise exception
+    assert wrapper.write("test data") == 9
+    wrapper.flush()
+
+    # safe_print should not raise
+    safe_print("test print")

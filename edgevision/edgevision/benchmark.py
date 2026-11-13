@@ -136,6 +136,9 @@ def calculate_latency_percentiles(latencies_seconds: List[float]) -> Dict[str, f
     }
 
 
+from edgevision.stream_utils import safe_print
+
+
 def print_benchmark_table(metrics: BenchmarkMetrics) -> None:
     """Print formatted ASCII benchmark results table."""
     d = metrics.to_dict()
@@ -145,25 +148,25 @@ def print_benchmark_table(metrics: BenchmarkMetrics) -> None:
         else "NOT AVAILABLE (Non-Pi Host)"
     )
 
-    print("\n" + "=" * 70)
-    print("EDGEVISION PERFORMANCE BENCHMARK RESULTS")
-    print("=" * 70)
-    print(f"Runtime Used         : {d['runtime_used']}")
-    print(f"Platform / Host      : {d['device_platform']} ({d['cpu_architecture']})")
-    print(f"CPU Model            : {d['cpu_model']}")
-    print(f"Model File Size      : {d['model_size_mb']} MB" if d['model_size_mb'] else "Model File Size      : N/A")
-    print(f"Total Frames Processed: {d['num_processed_frames']} (Skipped: {d['num_skipped_frames']})")
-    print(f"Total Time           : {d['total_time_seconds']} s")
-    print(f"End-to-End FPS       : {d['end_to_end_fps']} FPS")
-    print(f"Effective Ingest FPS : {d['effective_fps']} FPS")
-    print("-" * 70)
-    print("INFERENCE LATENCY BREAKDOWN (per processed frame):")
-    print(f"  Mean Latency       : {d['latency_mean_ms']:.2f} ms")
-    print(f"  p50 (Median)       : {d['latency_p50_ms']:.2f} ms")
-    print(f"  p95                : {d['latency_p95_ms']:.2f} ms")
-    print(f"  p99                : {d['latency_p99_ms']:.2f} ms")
-    print("-" * 70)
-    print("SYSTEM TELEMETRY:")
-    print(f"  Peak RSS Memory    : {d['peak_rss_mb']:.1f} MB")
-    print(f"  CPU Temperature    : {temp_str}")
-    print("=" * 70 + "\n")
+    safe_print("\n" + "=" * 70)
+    safe_print("EDGEVISION PERFORMANCE BENCHMARK RESULTS")
+    safe_print("=" * 70)
+    safe_print(f"Runtime Used         : {d['runtime_used']}")
+    safe_print(f"Platform / Host      : {d['device_platform']} ({d['cpu_architecture']})")
+    safe_print(f"CPU Model            : {d['cpu_model']}")
+    safe_print(f"Model File Size      : {d['model_size_mb']} MB" if d['model_size_mb'] else "Model File Size      : N/A")
+    safe_print(f"Total Frames Processed: {d['num_processed_frames']} (Skipped: {d['num_skipped_frames']})")
+    safe_print(f"Total Time           : {d['total_time_seconds']} s")
+    safe_print(f"End-to-End FPS       : {d['end_to_end_fps']} FPS")
+    safe_print(f"Effective Ingest FPS : {d['effective_fps']} FPS")
+    safe_print("-" * 70)
+    safe_print("INFERENCE LATENCY BREAKDOWN (per processed frame):")
+    safe_print(f"  Mean Latency       : {d['latency_mean_ms']:.2f} ms")
+    safe_print(f"  p50 (Median)       : {d['latency_p50_ms']:.2f} ms")
+    safe_print(f"  p95                : {d['latency_p95_ms']:.2f} ms")
+    safe_print(f"  p99                : {d['latency_p99_ms']:.2f} ms")
+    safe_print("-" * 70)
+    safe_print("SYSTEM TELEMETRY:")
+    safe_print(f"  Peak RSS Memory    : {d['peak_rss_mb']:.1f} MB")
+    safe_print(f"  CPU Temperature    : {temp_str}")
+    safe_print("=" * 70 + "\n")

@@ -33,7 +33,10 @@ from werkzeug.utils import secure_filename
 
 from edgevision.config import EdgeVisionConfig, load_config
 from edgevision.pipeline import EdgeVisionPipeline, PipelineResult
+from edgevision.stream_utils import patch_stdout_stderr, safe_print
 from edgevision.video_io import get_video_metadata
+
+patch_stdout_stderr()
 
 app = Flask(
     __name__,
@@ -63,6 +66,7 @@ def _run_job_worker(
     runtime: str,
     stride: str | int,
     conf_thresh: float,
+    save_video: bool = False,
 ) -> None:
     global active_job_id
     job = jobs[job_id]
@@ -78,6 +82,7 @@ def _run_job_worker(
         else:
             cfg.frame_stride = int(stride)
         cfg.conf_threshold = float(conf_thresh)
+        cfg.output.save_video = bool(save_video)
         cfg.validate()
 
         pipeline = EdgeVisionPipeline(cfg)
@@ -102,8 +107,12 @@ def _run_job_worker(
         job["end_to_end_fps"] = res.end_to_end_fps
         job["total_time"] = res.processing_time_seconds
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        safe_print(f"\n[JOB FAILURE] Job {job_id} failed:\n{tb}")
         job["state"] = "failed"
-        job["error"] = str(e)
+        job["error"] = f"{type(e).__name__}: {str(e)}"
+        job["traceback"] = tb
     finally:
         with job_lock:
             if active_job_id == job_id:
@@ -190,6 +199,8 @@ def upload():
     runtime = request.form.get("runtime", cfg.model.runtime)
     stride = request.form.get("stride", str(cfg.frame_stride))
     conf_thresh = float(request.form.get("conf_threshold", str(cfg.conf_threshold)))
+    save_video_raw = request.form.get("save_video", "false").lower()
+    save_video = save_video_raw in ("true", "1", "on", "yes")
 
     out_dir = OUTPUT_FOLDER / f"job_{job_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -212,14 +223,31 @@ def upload():
 
     thread = threading.Thread(
         target=_run_job_worker,
-        args=(job_id, saved_path, out_dir, runtime, stride, conf_thresh),
+        args=(job_id, saved_path, out_dir, runtime, stride, conf_thresh, save_video),
         daemon=True,
     )
     thread.start()
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
-        return jsonify({"job_id": job_id, "status_url": f"/status/{job_id}"})
+        return jsonify({
+            "job_id": job_id,
+            "status_url": f"/status/{job_id}",
+            "job_url": f"/job/{job_id}",
+        })
     return redirect(url_for("status_page", job_id=job_id))
+
+
+@app.route("/cancel/<job_id>", methods=["POST", "GET"])
+def cancel_job(job_id: str):
+    """Cancel or reset active job lock."""
+    global active_job_id
+    with job_lock:
+        if active_job_id == job_id:
+            active_job_id = None
+        if job_id in jobs and jobs[job_id]["state"] in ("pending", "processing"):
+            jobs[job_id]["state"] = "failed"
+            jobs[job_id]["error"] = "Job was cancelled by user."
+    return redirect(url_for("index"))
 
 
 @app.route("/status/<job_id>")
@@ -236,6 +264,7 @@ def status(job_id: str):
         "total_frames": job["total_frames"],
         "current_fps": round(job.get("current_fps", 0.0), 1),
         "error": job.get("error"),
+        "traceback": job.get("traceback"),
     })
 
 
@@ -284,6 +313,11 @@ def result(job_id: str):
     if chart_file.is_file():
         chart_url = f"/outputs/{job_id}/counts_chart.png"
 
+    video_url = None
+    annotated_video = Path(job["output_dir"]) / "annotated_video.mp4"
+    if annotated_video.is_file():
+        video_url = f"/outputs/{job_id}/annotated_video.mp4"
+
     return render_template(
         "result.html",
         job=job,
@@ -293,6 +327,7 @@ def result(job_id: str):
         samples=samples,
         summary_text=summary_text,
         chart_url=chart_url,
+        video_url=video_url,
     )
 
 
@@ -307,7 +342,7 @@ def serve_output(job_id: str, subpath: str):
 
 @app.route("/download/<job_id>/<file_type>")
 def download_artifact(job_id: str, file_type: str):
-    """Download CSV or benchmark JSON artifacts."""
+    """Download CSV, benchmark JSON, summary markdown, or annotated video artifacts."""
     job = jobs.get(job_id)
     if not job:
         abort(404)
@@ -319,8 +354,18 @@ def download_artifact(job_id: str, file_type: str):
     elif file_type == "benchmark":
         target = out_dir / "benchmark.json"
         download_name = f"edgevision_benchmark_{job_id}.json"
+    elif file_type == "summary":
+        target = out_dir / "summary.md"
+        download_name = f"edgevision_summary_{job_id}.md"
+    elif file_type == "video":
+        target = out_dir / "annotated_video.mp4"
+        download_name = f"edgevision_annotated_{job_id}.mp4"
     else:
         abort(404)
+
+    if not target.is_file():
+        abort(404)
+    return send_file(str(target), as_attachment=True, download_name=download_name)
 
     if not target.is_file():
         abort(404)

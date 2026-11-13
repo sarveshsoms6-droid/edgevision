@@ -37,11 +37,18 @@
           </div>
         </div>
 
-        <div id="error-box" class="alert alert-danger" style="display: none; margin-top: 1.5rem;"></div>
+        <div id="error-box" class="alert alert-danger" style="display: none; margin-top: 1.5rem; text-align: left; white-space: pre-wrap; word-break: break-all;"></div>
+        <div id="action-on-failure" style="display: none; margin-top: 1.5rem;">
+          <a href="/" class="btn btn-secondary">&larr; Back to Upload</a>
+        </div>
 
         <p class="note" style="margin-top: 1.5rem;">
           Processing on edge CPU. This page polls every second and redirects automatically upon completion.
         </p>
+
+        <div style="margin-top: 1.5rem;">
+          <a href="/cancel/{{ job.job_id }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Cancel &amp; Return to Home</a>
+        </div>
       </section>
     </main>
   </div>
@@ -55,16 +62,18 @@
       fetch(statusUrl)
         .then(res => res.json())
         .then(data => {
-          if (data.error && data.state === "failed") {
+          if (data.state === "failed") {
             document.getElementById("job-state").innerText = "Failed";
-            document.getElementById("error-box").innerText = "Error: " + data.error;
+            document.getElementById("error-box").innerText = "Error: " + (data.error || "An unknown error occurred.");
             document.getElementById("error-box").style.display = "block";
+            document.getElementById("action-on-failure").style.display = "block";
+            document.getElementById("progress-bar").style.backgroundColor = "#ef4444";
             return;
           }
 
           document.getElementById("job-state").innerText = data.state.charAt(0).toUpperCase() + data.state.slice(1);
           document.getElementById("frames-metric").innerText = data.processed_frames + " / " + data.total_frames;
-          document.getElementById("fps-metric").innerText = data.current_fps.toFixed(1) + " FPS";
+          document.getElementById("fps-metric").innerText = (data.current_fps ? data.current_fps.toFixed(1) : "0.0") + " FPS";
 
           let pct = 0;
           if (data.total_frames > 0) {
@@ -78,7 +87,7 @@
             setTimeout(() => {
               window.location.href = resultUrl;
             }, 800);
-          } else if (data.state !== "failed") {
+          } else {
             setTimeout(pollStatus, 1000);
           }
         })

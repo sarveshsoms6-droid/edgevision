@@ -18,6 +18,10 @@
       <div class="btn-group">
         <a href="/download/{{ job.job_id }}/csv" class="btn btn-primary" download>Download CSV Counts</a>
         <a href="/download/{{ job.job_id }}/benchmark" class="btn btn-outline" download>Download Benchmark JSON</a>
+        <a href="/download/{{ job.job_id }}/summary" class="btn btn-outline" download>Download Summary</a>
+        {% if video_url %}
+        <a href="/download/{{ job.job_id }}/video" class="btn btn-primary" download>Download Annotated Video</a>
+        {% endif %}
       </div>
     </div>
 
@@ -44,6 +48,20 @@
         <span class="card-sub">Peak Persons: {{ result.peak_counts.get('person', 0) if result else 0 }}</span>
       </div>
     </section>
+
+    <!-- Optional Annotated Output Video Player -->
+    {% if video_url %}
+    <section class="card">
+      <h2>Annotated Output Video</h2>
+      <p class="note">Processed video with bounding boxes, object counts, and ROI zone overlay.</p>
+      <div style="margin-top: 1rem; text-align: center;">
+        <video controls style="max-width: 100%; max-height: 480px; border-radius: 6px; background-color: #000;">
+          <source src="{{ video_url }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </section>
+    {% endif %}
 
     <!-- Annotated Sample Frames -->
     {% if samples %}
