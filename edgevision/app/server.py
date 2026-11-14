@@ -46,15 +46,22 @@ app = Flask(
 CONFIG_PATH = _project_root / "config.yaml"
 BASE_CONFIG: EdgeVisionConfig = load_config(CONFIG_PATH)
 
+# Setup storage folders - redirect to /tmp in serverless/read-only environments like Vercel
+_is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+_data_dir = Path("/tmp/edgevision") if _is_serverless else _project_root
+
 app.config["MAX_CONTENT_LENGTH"] = BASE_CONFIG.upload.max_mb * 1024 * 1024
-UPLOAD_FOLDER = _project_root / "uploads"
-OUTPUT_FOLDER = _project_root / "outputs"
-TESTING_FOLDER = _project_root / "testing"
-TRAINING_FOLDER = _project_root / "training"
-UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
-TESTING_FOLDER.mkdir(parents=True, exist_ok=True)
-TRAINING_FOLDER.mkdir(parents=True, exist_ok=True)
+UPLOAD_FOLDER = _data_dir / "uploads"
+OUTPUT_FOLDER = _data_dir / "outputs"
+TESTING_FOLDER = _data_dir / "testing"
+TRAINING_FOLDER = _data_dir / "training"
+try:
+    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+    OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
+    TESTING_FOLDER.mkdir(parents=True, exist_ok=True)
+    TRAINING_FOLDER.mkdir(parents=True, exist_ok=True)
+except Exception as _mk_err:
+    safe_print(f"[Warning] Could not initialize directory: {_mk_err}")
 
 # Single concurrent job lock for edge memory safety
 job_lock = threading.Lock()
