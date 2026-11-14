@@ -32,10 +32,10 @@ class VideoMetadata:
 
 
 def get_video_metadata(video_path: str | Path) -> VideoMetadata:
-    """Extract resolution, FPS, total frame count, and duration from video file.
+    """Extract resolution, FPS, total frame count, and duration from video or image file.
 
     Args:
-        video_path: Path to target video file.
+        video_path: Path to target video or image file.
 
     Returns:
         VideoMetadata dataclass.
@@ -47,6 +47,22 @@ def get_video_metadata(video_path: str | Path) -> VideoMetadata:
     path_obj = Path(video_path)
     if not path_obj.is_file():
         raise FileNotFoundError(f"Video file not found at: {video_path}")
+
+    # Directly handle static image files
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    if path_obj.suffix.lower() in image_exts:
+        img = cv2.imread(str(path_obj))
+        if img is None or img.size == 0:
+            raise ValueError(f"Could not open or decode image file: {video_path}")
+        h, w = img.shape[:2]
+        return VideoMetadata(
+            path=str(path_obj),
+            width=w,
+            height=h,
+            fps=30.0,
+            total_frames=1,
+            duration_seconds=1.0 / 30.0,
+        )
 
     cap = cv2.VideoCapture(str(path_obj))
     if not cap.isOpened():
@@ -116,6 +132,25 @@ def read_video_frames(
         Tuple of (frame_index, timestamp_seconds, frame_bgr).
     """
     path_obj = Path(video_path)
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    if path_obj.suffix.lower() in image_exts:
+        img = cv2.imread(str(path_obj))
+        if img is None or img.size == 0:
+            raise ValueError(f"Failed to open image file: {video_path}")
+        h, w = img.shape[:2]
+        if w > max_width:
+            scale = max_width / float(w)
+            new_w = max_width
+            new_h = int(round(h * scale))
+        else:
+            new_w, new_h = w, h
+        new_w = new_w - (new_w % 2)
+        new_h = new_h - (new_h % 2)
+        if (w, h) != (new_w, new_h):
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        yield 0, 0.0, img
+        return
+
     cap = cv2.VideoCapture(str(path_obj))
     if not cap.isOpened():
         raise ValueError(f"Failed to open video file: {video_path}")

@@ -48,6 +48,9 @@ uploads/*
 !uploads/.gitkeep
 outputs/*
 !outputs/.gitkeep
+training/*
+testing/*
+module/
 dataset/images/
 dataset/labels/
 

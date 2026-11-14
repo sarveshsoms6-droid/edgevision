@@ -21,6 +21,7 @@ CLASS_COLORS = {
     "bus": (155, 89, 182),        # Amethyst purple
     "motorcycle": (52, 152, 219), # Sky blue
     "bicycle": (241, 196, 15),    # Sunflower yellow
+    "ambulance": (50, 50, 230),   # Crimson red
 }
 DEFAULT_COLOR = (200, 200, 200)
 
@@ -30,6 +31,7 @@ def blur_person_detections(
     boxes: np.ndarray,
     class_ids: np.ndarray,
     person_class_id: int = 1,
+    class_name_map: Optional[Dict[int, str]] = None,
 ) -> np.ndarray:
     """Apply Gaussian blur to regions corresponding to detected person boxes.
 
@@ -37,7 +39,8 @@ def blur_person_detections(
         image: BGR image array (H, W, 3).
         boxes: Normalized bounding boxes [K, 4] [x1, y1, x2, y2].
         class_ids: Array of detected class IDs [K].
-        person_class_id: COCO ID corresponding to person class.
+        person_class_id: Numeric category ID corresponding to person class.
+        class_name_map: Optional mapping of category IDs to class names.
 
     Returns:
         Image with blurred person regions.
@@ -46,7 +49,11 @@ def blur_person_detections(
     h, w = out.shape[:2]
 
     for box, cid in zip(boxes, class_ids):
-        if int(cid) == person_class_id:
+        is_person = (int(cid) == person_class_id)
+        if not is_person and class_name_map is not None:
+            is_person = (class_name_map.get(int(cid), "").lower() == "person")
+
+        if is_person:
             x1 = max(0, int(box[0] * w))
             y1 = max(0, int(box[1] * h))
             x2 = min(w, int(box[2] * w))
@@ -93,7 +100,7 @@ def annotate_frame(
 
     # 1. Apply privacy blur first if enabled
     if blur_persons:
-        out = blur_person_detections(out, boxes, class_ids, person_class_id=1)
+        out = blur_person_detections(out, boxes, class_ids, person_class_id=1, class_name_map=class_name_map)
 
     # 2. Draw ROI polygon if present
     if zone_polygon and len(zone_polygon) >= 3:
@@ -103,7 +110,8 @@ def annotate_frame(
 
     # 3. Draw bounding boxes and labels
     for box, score, cid in zip(boxes, scores, class_ids):
-        cls_name = class_name_map.get(int(cid), f"id:{cid}")
+        raw_name = class_name_map.get(int(cid), f"id:{cid}")
+        cls_name = raw_name.lower()
         color = CLASS_COLORS.get(cls_name, DEFAULT_COLOR)
 
         x1 = max(0, int(box[0] * w))
@@ -124,8 +132,9 @@ def annotate_frame(
         cv2.putText(out, label_text, (x1 + 2, y1 - baseline - 2), font, scale, (255, 255, 255), thick)
 
     # 4. Draw count overlay banner at top-left
+    from edgevision.counter import compute_vehicle_total
     overlay_lines = []
-    vehicle_sum = sum(counts.get(k, 0) for k in ("car", "truck", "bus", "motorcycle", "bicycle"))
+    vehicle_sum = compute_vehicle_total(counts)
     overlay_lines.append(f"Vehicles: {vehicle_sum} | Persons: {counts.get('person', 0)}")
 
     detail_str = " | ".join(f"{k}:{v}" for k, v in counts.items() if v > 0)

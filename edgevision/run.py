@@ -38,7 +38,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--runtime",
         type=str,
-        choices=["executorch-int8", "executorch-fp32", "pytorch-reference"],
+        choices=[
+            "yolov11",
+            "yolov11n",
+            "executorch-int8",
+            "executorch-fp32",
+            "pytorch-reference",
+        ],
         default=None,
         help="Override inference runtime specified in config.yaml",
     )
@@ -93,6 +99,18 @@ def main() -> None:
     if not input_path.is_file():
         print(f"[EdgeVision] Error: Input video file does not exist: {input_path}", file=sys.stderr)
         sys.exit(1)
+
+    # Store user input into testing folder
+    import shutil
+    testing_dir = Path("testing")
+    testing_dir.mkdir(parents=True, exist_ok=True)
+    testing_dest = testing_dir / input_path.name
+    try:
+        if input_path.resolve() != testing_dest.resolve():
+            shutil.copy2(str(input_path), str(testing_dest))
+            print(f"[EdgeVision] Stored user input into testing folder: {testing_dest}")
+    except Exception as copy_err:
+        pass
 
     job_id = uuid.uuid4().hex[:8]
     output_dir = Path(args.output_dir) if args.output_dir else Path("outputs") / f"job_{job_id}"

@@ -1,5 +1,4 @@
 """Offline Flask web application for traffic video upload and analysis.
-
 Runs offline without CDN or external dependencies.
 Enforces single concurrent job execution, 100 MB upload limit, and 60-second video limit.
 """
@@ -50,8 +49,12 @@ BASE_CONFIG: EdgeVisionConfig = load_config(CONFIG_PATH)
 app.config["MAX_CONTENT_LENGTH"] = BASE_CONFIG.upload.max_mb * 1024 * 1024
 UPLOAD_FOLDER = _project_root / "uploads"
 OUTPUT_FOLDER = _project_root / "outputs"
+TESTING_FOLDER = _project_root / "testing"
+TRAINING_FOLDER = _project_root / "training"
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
+TESTING_FOLDER.mkdir(parents=True, exist_ok=True)
+TRAINING_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Single concurrent job lock for edge memory safety
 job_lock = threading.Lock()
@@ -175,6 +178,16 @@ def upload():
     saved_path = UPLOAD_FOLDER / saved_filename
     file.save(str(saved_path))
 
+    # Store user input into the testing folder
+    import shutil
+    try:
+        test_filename = orig_name if not (TESTING_FOLDER / orig_name).exists() else f"{job_id}_{orig_name}"
+        test_dest = TESTING_FOLDER / test_filename
+        shutil.copy2(str(saved_path), str(test_dest))
+        safe_print(f"[EdgeVision Server] Stored user input into testing folder: {test_dest}")
+    except Exception as copy_err:
+        safe_print(f"[Warning] Failed to copy user input to testing folder: {copy_err}")
+
     # Verify duration using OpenCV
     try:
         meta = get_video_metadata(saved_path)
@@ -285,23 +298,38 @@ def result(job_id: str):
         abort(404)
 
     res: Optional[PipelineResult] = job.get("result")
-    if not res:
-        # Attempt to recover results from files on disk
-        out_dir = Path(job.get("output_dir", ""))
-        csv_file = out_dir / "counts.csv"
-        if not csv_file.is_file():
-            return redirect(url_for("status_page", job_id=job_id))
+    out_dir = Path(job.get("output_dir", ""))
+    csv_file = out_dir / "counts.csv"
 
-    records = res.per_frame_counts if res else []
+    if not res and not csv_file.is_file():
+        return redirect(url_for("status_page", job_id=job_id))
+
+    records = []
+    if res and res.per_frame_counts:
+        records = res.per_frame_counts
+    elif csv_file.is_file():
+        import csv
+        try:
+            with open(csv_file, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                records = list(reader)
+        except Exception:
+            records = []
+
     display_records = records[:50]
     total_records_count = len(records)
 
     # Relative paths for web serving
     samples = []
-    if res:
+    if res and res.saved_sample_paths:
         for p in res.saved_sample_paths:
             p_obj = Path(p)
             samples.append(f"/outputs/{job_id}/samples/{p_obj.name}")
+    else:
+        samples_dir = out_dir / "samples"
+        if samples_dir.is_dir():
+            for p_obj in sorted(samples_dir.glob("*.jpg")):
+                samples.append(f"/outputs/{job_id}/samples/{p_obj.name}")
 
     summary_text = ""
     summary_file = Path(job["output_dir"]) / "summary.md"
@@ -367,16 +395,32 @@ def download_artifact(job_id: str, file_type: str):
         abort(404)
     return send_file(str(target), as_attachment=True, download_name=download_name)
 
-    if not target.is_file():
-        abort(404)
-    return send_file(str(target), as_attachment=True, download_name=download_name)
-
 
 def main() -> None:
-    """Run offline Flask server bound to LAN (0.0.0.0:5000)."""
-    print("[EdgeVision Server] Starting offline Flask server on http://0.0.0.0:5000")
-    print("[EdgeVision Server] Connect from any device on local network.")
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    """Run offline Flask server bound to LAN (0.0.0.0:5000) and open browser."""
+    import webbrowser
+
+    port = 5000
+    local_url = f"http://127.0.0.1:{port}"
+
+    print("=" * 60)
+    print(f"[EdgeVision Server] Starting offline Flask server")
+    print(f"[EdgeVision Server] Web Interface : {local_url}")
+    print(f"[EdgeVision Server] Network Access : http://0.0.0.0:{port}")
+    print("=" * 60)
+
+    # Launch browser automatically after a short delay
+    def _open_browser() -> None:
+        time.sleep(1.2)
+        try:
+            print(f"[EdgeVision Server] Launching default web browser to: {local_url}")
+            webbrowser.open(local_url)
+        except Exception as e:
+            safe_print(f"[EdgeVision Server] Could not launch browser automatically: {e}")
+
+    threading.Thread(target=_open_browser, daemon=True).start()
+
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":

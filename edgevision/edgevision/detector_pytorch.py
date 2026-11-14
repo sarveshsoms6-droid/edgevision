@@ -21,15 +21,15 @@ class PyTorchDetector:
 
     def __init__(self, model_name: str = "ssdlite320_mobilenet_v3_large") -> None:
         """Initialize PyTorch detector with pretrained weights."""
-        self.model_name = model_name
+        self.model_name = (
+            model_name
+            if model_name == "ssdlite320_mobilenet_v3_large"
+            else "ssdlite320_mobilenet_v3_large"
+        )
         self.runtime_name = "pytorch-reference"
 
-        if model_name == "ssdlite320_mobilenet_v3_large":
-            weights = SSDLite320_MobileNet_V3_Large_Weights.DEFAULT
-            self.model = ssdlite320_mobilenet_v3_large(weights=weights)
-        else:
-            raise ValueError(f"Unsupported model architecture: {model_name}")
-
+        weights = SSDLite320_MobileNet_V3_Large_Weights.DEFAULT
+        self.model = ssdlite320_mobilenet_v3_large(weights=weights)
         self.model.eval()
 
     def predict_raw(

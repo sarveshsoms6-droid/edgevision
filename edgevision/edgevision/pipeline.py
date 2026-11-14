@@ -87,25 +87,36 @@ class EdgeVisionPipeline:
         self.preprocessor = Preprocessor(input_size=config.model.input_size)
         self._detector: Optional[Any] = None
 
-    def _load_anchors(self, anchors_path: str | Path) -> np.ndarray:
-        """Load precomputed anchor boxes."""
+    def _load_anchors(self, anchors_path: str | Path) -> Optional[np.ndarray]:
+        """Load precomputed anchor boxes if available."""
         p = Path(anchors_path)
-        if not p.is_file():
-            candidates = [
-                Path("models/anchors.npy"),
-                Path("edgevision/models/anchors.npy"),
-                Path(__file__).resolve().parent.parent / "models" / "anchors.npy",
-            ]
-            for cand in candidates:
-                if cand.is_file():
-                    p = cand
-                    break
-        if not p.is_file():
-            raise FileNotFoundError(f"Anchors file not found at: {anchors_path}")
-        return np.load(p)
+        candidates = [
+            p,
+            Path("models/anchors.npy"),
+            Path("edgevision/models/anchors.npy"),
+            Path(__file__).resolve().parent.parent / "models" / "anchors.npy",
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                return np.load(cand)
+        return None
 
     def _resolve_model_path(self, runtime_name: str) -> Path:
         """Resolve actual model file path based on runtime mode."""
+        if runtime_name in ("yolov11", "yolov11n"):
+            yolo_cfg_path = getattr(self.config.model, "yolo_path", "models/yolo11n.pt")
+            candidates = [
+                Path(yolo_cfg_path),
+                Path("models/yolo11n.pt"),
+                Path("edgevision/models/yolo11n.pt"),
+                Path(__file__).resolve().parent.parent / "models" / "yolo11n.pt",
+                Path("yolo11n.pt"),
+            ]
+            for cand in candidates:
+                if cand.is_file():
+                    return cand
+            return Path(yolo_cfg_path)
+
         base_path = Path(self.config.model.pte_path)
         if runtime_name == "executorch-int8":
             candidates = [
@@ -121,8 +132,21 @@ class EdgeVisionPipeline:
 
     def _get_detector(self, runtime_name: str) -> Any:
         """Instantiate detector wrapper based on runtime."""
-        if runtime_name == "pytorch-reference":
-            return PyTorchDetector(model_name=self.config.model.name)
+        if runtime_name in ("yolov11", "yolov11n"):
+            from edgevision.detector_yolo import YOLOv11Detector
+            resolved_yolo = self._resolve_model_path(runtime_name)
+            return YOLOv11Detector(
+                model_path=resolved_yolo,
+                conf_threshold=self.config.conf_threshold,
+                nms_iou=self.config.nms_iou,
+            )
+        elif runtime_name == "pytorch-reference":
+            m_name = (
+                self.config.model.name
+                if self.config.model.name == "ssdlite320_mobilenet_v3_large"
+                else "ssdlite320_mobilenet_v3_large"
+            )
+            return PyTorchDetector(model_name=m_name)
         elif runtime_name in ("executorch-fp32", "executorch-int8"):
             from edgevision.detector_et import ExecuTorchDetector
             resolved_pte = self._resolve_model_path(runtime_name)
@@ -160,15 +184,18 @@ class EdgeVisionPipeline:
 
         meta = get_video_metadata(video_path)
         detector = self._get_detector(runtime)
+        active_id_map: Dict[int, str] = getattr(
+            detector, "id_to_class_map", self.config.classes.coco_id_map
+        )
 
         # 1. Warm-up: 5 dummy inferences (excluded from stats)
-        dummy_input = np.zeros(
-            (1, 3, self.config.model.input_size, self.config.model.input_size),
-            dtype=np.float32,
-        )
         if hasattr(detector, "warmup"):
             detector.warmup(num_iterations=5, input_size=self.config.model.input_size)
         else:
+            dummy_input = np.zeros(
+                (1, 3, self.config.model.input_size, self.config.model.input_size),
+                dtype=np.float32,
+            )
             for _ in range(5):
                 detector.predict_raw(dummy_input)
 
@@ -241,26 +268,35 @@ class EdgeVisionPipeline:
 
                 if is_processed_frame:
                     t0 = time.perf_counter()
-                    preprocessed = self.preprocessor.preprocess_frame(frame_bgr)
-                    logits, regs = detector.predict_raw(preprocessed)
+                    if hasattr(detector, "predict_detections"):
+                        boxes, scores, labels = detector.predict_detections(
+                            frame_bgr=frame_bgr,
+                            conf_threshold=self.config.conf_threshold,
+                            nms_iou=self.config.nms_iou,
+                            max_detections=self.config.max_detections,
+                            target_classes=self.config.classes.target_names,
+                        )
+                    else:
+                        preprocessed = self.preprocessor.preprocess_frame(frame_bgr)
+                        logits, regs = detector.predict_raw(preprocessed)
 
-                    boxes, scores, labels = postprocess_detections(
-                        logits=logits,
-                        regressions=regs,
-                        anchors=self.anchors,
-                        conf_threshold=self.config.conf_threshold,
-                        nms_iou=self.config.nms_iou,
-                        max_detections=self.config.max_detections,
-                        target_class_ids=self.config.classes.coco_id_map,
-                        input_size=self.config.model.input_size,
-                    )
+                        boxes, scores, labels = postprocess_detections(
+                            logits=logits,
+                            regressions=regs,
+                            anchors=self.anchors,
+                            conf_threshold=self.config.conf_threshold,
+                            nms_iou=self.config.nms_iou,
+                            max_detections=self.config.max_detections,
+                            target_class_ids=self.config.classes.coco_id_map,
+                            input_size=self.config.model.input_size,
+                        )
 
                     t_inf = time.perf_counter() - t0
                     inference_latencies.append(t_inf)
 
                     current_counts = count_objects_in_frame(
                         class_ids=labels,
-                        id_to_class_map=self.config.classes.coco_id_map,
+                        id_to_class_map=active_id_map,
                         target_classes=self.config.classes.target_names,
                     )
 
@@ -272,7 +308,7 @@ class EdgeVisionPipeline:
                             boxes=boxes,
                             labels=labels,
                             polygon=self.config.zone.polygon,
-                            id_to_class_map=self.config.classes.coco_id_map,
+                            id_to_class_map=active_id_map,
                         )
                         cur_zone_veh = z_res["in_zone_vehicles"]
                         cur_zone_ped = z_res["in_zone_pedestrians"]
@@ -329,7 +365,7 @@ class EdgeVisionPipeline:
                             boxes=boxes,
                             scores=scores,
                             class_ids=labels,
-                            class_name_map=self.config.classes.coco_id_map,
+                            class_name_map=active_id_map,
                             counts=dict(current_counts),
                             zone_polygon=self.config.zone.polygon if self.config.zone.enabled else None,
                             blur_persons=self.config.privacy.blur_persons_in_samples,
@@ -419,7 +455,7 @@ class EdgeVisionPipeline:
                     boxes=b,
                     scores=s,
                     class_ids=l,
-                    class_name_map=self.config.classes.coco_id_map,
+                    class_name_map=active_id_map,
                     counts=c,
                     zone_polygon=self.config.zone.polygon if self.config.zone.enabled else None,
                     blur_persons=self.config.privacy.blur_persons_in_samples,

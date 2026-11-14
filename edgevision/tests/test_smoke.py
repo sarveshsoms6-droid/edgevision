@@ -15,6 +15,7 @@ MODULES = [
     "edgevision.preprocess",
     "edgevision.detector_pytorch",
     "edgevision.detector_et",
+    "edgevision.detector_yolo",
     "edgevision.postprocess",
     "edgevision.counter",
     "edgevision.zones",
@@ -42,9 +43,15 @@ def test_load_config_valid():
     cfg = load_config(config_path)
 
     assert isinstance(cfg, EdgeVisionConfig)
-    assert cfg.model.name == "ssdlite320_mobilenet_v3_large"
-    assert cfg.model.input_size == 320
-    assert cfg.model.runtime in ("executorch-int8", "executorch-fp32", "pytorch-reference")
+    assert cfg.model.name in ("yolo11n", "ssdlite320_mobilenet_v3_large")
+    assert cfg.model.input_size in (320, 640)
+    assert cfg.model.runtime in (
+        "yolov11",
+        "yolov11n",
+        "executorch-int8",
+        "executorch-fp32",
+        "pytorch-reference",
+    )
     assert cfg.conf_threshold == 0.40
     assert cfg.nms_iou == 0.45
     assert cfg.max_detections == 100

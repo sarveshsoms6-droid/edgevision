@@ -24,13 +24,13 @@
         <h2>Upload Traffic Video</h2>
         <p class="info-note">
           <strong>Constraints:</strong> Maximum video duration: <strong>60 seconds</strong> | File size limit: <strong>100 MB</strong><br>
-          Supported formats: <strong>MP4, AVI, MOV, MKV</strong> (100% offline, zero cloud calls).
+          Supported formats: <strong>MP4, AVI, MOV, MKV, PNG, JPG</strong> (100% offline, stored into <code>testing/</code>).
         </p>
 
         <form id="upload-form" action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
           <div class="form-group">
-            <label for="video-file">Select Traffic Video:</label>
-            <input type="file" id="video-file" name="video" accept=".mp4,.avi,.mov,.mkv" required>
+            <label for="video-file">Select Traffic Video or Image:</label>
+            <input type="file" id="video-file" name="video" accept=".mp4,.avi,.mov,.mkv,.png,.jpg,.jpeg" required>
             <div id="file-info" class="file-info-badge" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: #475569;"></div>
           </div>
 
@@ -40,6 +40,7 @@
               <div class="form-group">
                 <label for="runtime-select">Inference Runtime:</label>
                 <select id="runtime-select" name="runtime">
+                  <option value="yolov11" {% if config.model.runtime == 'yolov11' or not config.model.runtime %}selected{% endif %}>YOLOv11 Nano (Ultralytics - Recommended)</option>
                   <option value="executorch-fp32" {% if config.model.runtime == 'executorch-fp32' %}selected{% endif %}>ExecuTorch FP32 (XNNPACK)</option>
                   <option value="executorch-int8" {% if config.model.runtime == 'executorch-int8' %}selected{% endif %}>ExecuTorch INT8 (PT2E Quantized)</option>
                   <option value="pytorch-reference" {% if config.model.runtime == 'pytorch-reference' %}selected{% endif %}>PyTorch Reference (Baseline)</option>

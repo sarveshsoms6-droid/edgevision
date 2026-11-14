@@ -228,6 +228,37 @@ Chronological log of implementation stages, verification steps, real terminal ou
     - Latency: Mean 45.68 ms, p50 43.19 ms, p95 62.01 ms.
     - Peak RSS: 354.4 MB.
 
+---
+
+## YOLOv11 Detector Integration & Upgrade
+- **Motivation / Goal**:
+  - Connect the YOLOv11 object detection architecture (`yolo11n.pt`) with EdgeVision and upgrade the object detection system across both offline pipelines and the Flask web application.
+  - Support high-accuracy vehicle detection (Cars, Buses, Trucks, Motorcycles, Ambulances, Bicycles) and pedestrian detection with modern single-stage YOLO inference.
+- **Files Modified / Implemented**:
+  - `edgevision/detector_yolo.py`: Implemented `YOLOv11Detector` wrapper using `ultralytics.YOLO`, providing `predict_detections()`, box normalization in `[0.0, 1.0]`, dynamic class map extraction from `model.names`, and cache warmup.
+  - `edgevision/config.py`: Added `"yolov11"` and `"yolov11n"` to `VALID_RUNTIMES`, added `yolo_path` to `ModelConfig`, added `"ambulance"` to `target_names`.
+  - `config.yaml`: Updated default active model and runtime to `yolo11n` / `yolov11`.
+  - `edgevision/pipeline.py`: Added direct `predict_detections()` branch in execution loop, mapped `active_id_map` for counting, ROI zones, sample frames, and video writer.
+  - `edgevision/counter.py`: Added `"ambulance"` to `VEHICLE_CLASSES` and dynamic class keys in `FrameCounts.to_csv_dict()`.
+  - `edgevision/annotate.py`: Added `"ambulance"` color to `CLASS_COLORS`, supported dynamic class mappings in privacy blurring.
+  - `edgevision/detector_pytorch.py`: Gracefully defaulted reference model architecture to prevent mismatches.
+  - `app/templates/index.html`: Added YOLOv11 Nano to the runtime dropdown as the recommended default.
+  - `run.py`: Added `"yolov11"` and `"yolov11n"` to CLI choices.
+  - `requirements.txt`: Added `ultralytics>=8.4.0`.
+  - `tests/test_detector_yolo.py`: Comprehensive test suite for YOLOv11 initialization, warmup, coordinate normalization, whitelist filtering, and end-to-end pipeline execution.
+  - `tests/test_server.py`: Added `test_upload_valid_video_yolov11`.
+  - `tests/test_smoke.py`: Added `edgevision.detector_yolo` to smoke tests.
+- **Commands Executed & Real Outputs**:
+  - `python -m pytest tests -v`: **55 passed** in 34.62s (100% pass rate).
+  - `python run.py --input sample_data/traffic_sample.mp4 --runtime yolov11 --output-dir outputs/cli_test_yolo`:
+    - Processed 31 frames (89 skipped) in 3.82s (End-to-End: 31.42 FPS, Effective Ingest: 8.17 FPS).
+    - Median Latency (p50): 91.13 ms. Peak RSS: 408.7 MB.
+  - `python run.py --input "...\compressed_output_TrafficPolice.mp4" --runtime yolov11 --output-dir outputs/real_traffic_yolo --stride 2`:
+    - Processed 375 frames of real traffic footage in 46.54s (16.12 FPS).
+    - Peak Vehicle Count: 7, Peak Pedestrian Count: 6.
+    - Successfully exported CSV, trend chart PNG, summary markdown, and annotated sample frames.
+
+
 
 
 

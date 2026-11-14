@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import numpy as np
 
-VEHICLE_CLASSES = {"bicycle", "car", "motorcycle", "bus", "truck"}
+VEHICLE_CLASSES = {"bicycle", "car", "motorcycle", "bus", "truck", "ambulance"}
 
 
 @dataclass
@@ -32,14 +32,15 @@ class FrameCounts:
         res: Dict[str, object] = {
             "frame": self.frame_index,
             "timestamp_s": round(self.timestamp_seconds, 3),
-            "person": self.counts_by_class.get("person", 0),
-            "bicycle": self.counts_by_class.get("bicycle", 0),
-            "car": self.counts_by_class.get("car", 0),
-            "motorcycle": self.counts_by_class.get("motorcycle", 0),
-            "bus": self.counts_by_class.get("bus", 0),
-            "truck": self.counts_by_class.get("truck", 0),
-            "total_vehicles": self.total_vehicles,
         }
+        for cls_name, count in self.counts_by_class.items():
+            res[cls_name] = count
+
+        for std_cls in ("person", "bicycle", "car", "motorcycle", "bus", "truck"):
+            if std_cls not in res:
+                res[std_cls] = self.counts_by_class.get(std_cls, 0)
+
+        res["total_vehicles"] = self.total_vehicles
         if self.in_zone_vehicles is not None:
             res["in_zone_vehicles"] = self.in_zone_vehicles
         if self.in_zone_pedestrians is not None:
@@ -65,13 +66,13 @@ def count_objects_in_frame(
     if target_classes is None:
         target_classes = ["person", "bicycle", "car", "motorcycle", "bus", "truck"]
 
-    counts: Dict[str, int] = {cls_name: 0 for cls_name in target_classes}
+    counts: Dict[str, int] = {cls_name.lower(): 0 for cls_name in target_classes}
 
     for cid in class_ids:
         cid_int = int(cid)
         cls_name = id_to_class_map.get(cid_int)
-        if cls_name in counts:
-            counts[cls_name] += 1
+        if cls_name is not None and cls_name.lower() in counts:
+            counts[cls_name.lower()] += 1
 
     return counts
 

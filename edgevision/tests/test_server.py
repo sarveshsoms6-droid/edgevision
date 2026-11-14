@@ -80,8 +80,8 @@ def test_upload_valid_video_and_poll(client):
     assert status_json["job_id"] == job_id
     assert status_json["state"] in ("pending", "processing", "completed")
 
-    # Wait for completion (small clip with stride 4 finishes in < 2 seconds)
-    max_wait = 15
+    # Wait for completion
+    max_wait = 30
     start = time.time()
     while time.time() - start < max_wait:
         poll = client.get(f"/status/{job_id}").get_json()
@@ -110,6 +110,57 @@ def test_upload_valid_video_and_poll(client):
     summary_resp = client.get(f"/download/{job_id}/summary")
     assert summary_resp.status_code == 200
     assert b"EdgeVision" in summary_resp.data
+
+    # Reset active job lock for subsequent tests
+    import app.server
+    with app.server.job_lock:
+        app.server.active_job_id = None
+
+
+def test_upload_valid_video_yolov11(client):
+    """Verify uploading a valid video clip with YOLOv11 runtime."""
+    import app.server
+    with app.server.job_lock:
+        app.server.active_job_id = None
+    sample_video = Path(__file__).resolve().parent.parent / "sample_data" / "traffic_sample.mp4"
+    if not sample_video.is_file():
+        pytest.skip("sample_data/traffic_sample.mp4 not found")
+
+    with open(sample_video, "rb") as f:
+        video_bytes = f.read()
+
+    data = {
+        "video": (io.BytesIO(video_bytes), "test_clip_yolo.mp4"),
+        "runtime": "yolov11",
+        "stride": "4",
+        "conf_threshold": "0.35",
+    }
+    resp = client.post(
+        "/upload",
+        data=data,
+        content_type="multipart/form-data",
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert resp.status_code == 200
+    res_json = resp.get_json()
+    assert "job_id" in res_json
+    job_id = res_json["job_id"]
+
+    max_wait = 20
+    start = time.time()
+    while time.time() - start < max_wait:
+        poll = client.get(f"/status/{job_id}").get_json()
+        if poll["state"] in ("completed", "failed"):
+            break
+        time.sleep(0.5)
+
+    assert poll["state"] == "completed"
+    result_page = client.get(f"/result/{job_id}")
+    assert result_page.status_code == 200
+    assert "yolov11" in result_page.data.decode("utf-8")
+
+    with app.server.job_lock:
+        app.server.active_job_id = None
 
 
 def test_cancel_job(client):

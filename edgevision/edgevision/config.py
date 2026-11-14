@@ -11,20 +11,31 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Union
 import yaml
 
-VALID_RUNTIMES = ("executorch-int8", "executorch-fp32", "pytorch-reference")
+VALID_RUNTIMES = (
+    "yolov11",
+    "yolov11n",
+    "executorch-int8",
+    "executorch-fp32",
+    "pytorch-reference",
+)
 
 
 @dataclass
 class ModelConfig:
     """Model architecture, weights, and runtime settings."""
 
-    name: str = "ssdlite320_mobilenet_v3_large"
+    name: str = "yolo11n"
     pte_path: str = "models/ssdlite320_mobilenet_v3_large.pte"
+    yolo_path: str = "models/yolo11n.pt"
     anchors_path: str = "models/anchors.npy"
-    input_size: int = 320
-    runtime: Literal["executorch-int8", "executorch-fp32", "pytorch-reference"] = (
-        "executorch-int8"
-    )
+    input_size: int = 640
+    runtime: Literal[
+        "yolov11",
+        "yolov11n",
+        "executorch-int8",
+        "executorch-fp32",
+        "pytorch-reference",
+    ] = "yolov11"
 
     def validate(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -33,6 +44,8 @@ class ModelConfig:
             raise ValueError(f"Invalid model pte_path: {self.pte_path!r}")
         if not isinstance(self.anchors_path, str):
             raise ValueError(f"Invalid model anchors_path: {self.anchors_path!r}")
+        if hasattr(self, "yolo_path") and not isinstance(self.yolo_path, str):
+            raise ValueError(f"Invalid model yolo_path: {self.yolo_path!r}")
         if not isinstance(self.input_size, int) or self.input_size <= 0:
             raise ValueError(
                 f"model.input_size must be a positive integer, got {self.input_size!r}"
@@ -55,6 +68,7 @@ class ClassesConfig:
             "motorcycle",
             "bus",
             "truck",
+            "ambulance",
         ]
     )
     coco_id_map: Dict[int, str] = field(

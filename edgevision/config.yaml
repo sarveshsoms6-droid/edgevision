@@ -5,19 +5,21 @@
 
 # Model and inference runtime configuration
 model:
-  # Detector architecture name (torchvision COCO detector)
-  name: "ssdlite320_mobilenet_v3_large"
-  # Path to compiled ExecuTorch .pte model file
+  # Detector architecture name: "yolo11n" (default) or "ssdlite320_mobilenet_v3_large"
+  name: "yolo11n"
+  # Path to YOLO weights (.pt)
+  yolo_path: "models/yolo11n.pt"
+  # Path to compiled ExecuTorch .pte model file (for edge ExecuTorch runtimes)
   pte_path: "models/ssdlite320_mobilenet_v3_large.pte"
-  # Path to precomputed default anchor boxes (.npy) for post-processing
+  # Path to precomputed default anchor boxes (.npy) for SSDLite post-processing
   anchors_path: "models/anchors.npy"
-  # Model square input resolution (width and height in pixels, default 320)
-  input_size: 320
-  # Active runtime: "executorch-int8", "executorch-fp32", or "pytorch-reference"
-  runtime: "executorch-int8"
+  # Model square input resolution (width and height in pixels: 640 for YOLO, 320 for SSDLite)
+  input_size: 640
+  # Active runtime: "yolov11", "executorch-int8", "executorch-fp32", or "pytorch-reference"
+  runtime: "yolov11"
 
-# Target classes to detect and count from COCO dataset
-# COCO category IDs: 1: person, 2: bicycle, 3: car, 4: motorcycle, 6: bus, 8: truck
+# Target classes to detect and count
+# Supports standard COCO classes and custom vehicle dataset classes (e.g. ambulance, car, bus, etc.)
 classes:
   target_names:
     - "person"
@@ -26,6 +28,7 @@ classes:
     - "motorcycle"
     - "bus"
     - "truck"
+    - "ambulance"
   coco_id_map:
     1: "person"
     2: "bicycle"
@@ -95,9 +98,12 @@ upload:
   max_seconds: 60
   # Maximum allowed file upload size in megabytes
   max_mb: 100
-  # Allowed video file extensions
+  # Allowed video and image file extensions
   allowed:
     - "mp4"
     - "avi"
     - "mov"
     - "mkv"
+    - "png"
+    - "jpg"
+    - "jpeg"
